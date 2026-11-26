@@ -294,7 +294,7 @@
   </style>
 </head>
 <body>
-  <div id="layout" class="split-layout">
+  <div id="layout" class="split-layout raw-closed">
     <main class="info-pane">
       <div class="card">
         <h1>Jupyter Notebook Auto-Setup Script</h1>
@@ -339,7 +339,7 @@
               <rect x="3" y="4" width="18" height="16" rx="2"></rect>
               <line x1="15" y1="4" x2="15" y2="20"></line>
             </svg>
-            <span id="panelToggleText">O'ng panelni yopish</span>
+            <span id="panelToggleText">setup-jupyter.ps1 ni ochish</span>
           </button>
         </div>
       </div>
@@ -631,8 +631,6 @@ if ($globalJupyterOk) {
         loadRawScript();
       }
     }
-
-    loadRawScript();
   </script>
 </body>
 </html>
