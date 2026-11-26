@@ -115,7 +115,7 @@ Write-Host "Python yo'li : $pythonExe" -ForegroundColor Green
 Write-Host "Python versiya: $(& $pythonExe --version)" -ForegroundColor Green
 Write-Host "PATH tekshiruvi: Python papkasi=$hasPyDir | Scripts papkasi=$hasScriptsDir" -ForegroundColor Green
 
-$packages = @("numpy", "pandas", "matplotlib", "scikit-learn")
+$packages = @("numpy", "pandas", "matplotlib", "scikit-learn", "seaborn")
 
 Write-Host "=== 2. Asosiy muhitda Jupyter tekshirilmoqda ===" -ForegroundColor Cyan
 $globalJupyterOk = $false
