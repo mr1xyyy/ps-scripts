@@ -5,119 +5,634 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jupyter Setup Script — jupyter.mr1xyyy.uz</title>
   <style>
+    * {
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: #383838 #0a0a0a;
+    }
+
+    *::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    *::-webkit-scrollbar-track {
+      background: #0a0a0a;
+    }
+
+    *::-webkit-scrollbar-thumb {
+      background: #303030;
+      border-radius: 999px;
+      border: 2px solid #0a0a0a;
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+      background: #6b6b6b;
+    }
+
+    *::-webkit-scrollbar-corner {
+      background: #0a0a0a;
+    }
+
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
+      background: #050505;
+      color: #ffffff;
       margin: 0;
-      padding: 40px 20px;
-      display: flex;
-      justify-content: center;
+      min-height: 100vh;
     }
-    .card {
-      max-width: 720px;
+
+    .split-layout {
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) minmax(380px, 1.15fr);
+      min-height: 100vh;
       width: 100%;
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
+    }
+
+    .split-layout.raw-closed {
+      grid-template-columns: 1fr;
+    }
+
+    .split-layout.raw-closed .raw-pane {
+      display: none;
+    }
+
+    .info-pane {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 36px 24px;
+      background: #050505;
+    }
+
+    .card {
+      max-width: 640px;
+      width: 100%;
+      background: #0e0e0e;
+      border: 1px solid #262626;
+      border-radius: 14px;
       padding: 28px;
     }
-    h1 { margin-top: 0; font-size: 24px; color: #38bdf8; }
-    p { color: #cbd5e1; line-height: 1.6; }
-    .cmd-box {
-      background: #090d16;
-      border: 1px solid #475569;
-      border-radius: 8px;
-      padding: 14px;
-      font-family: Consolas, monospace;
-      font-size: 14px;
-      color: #f8fafc;
-      overflow-x: auto;
-      margin: 16px 0;
+
+    .raw-pane {
+      background: #080808;
+      border-left: 1px solid #262626;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: sticky;
+      top: 0;
     }
-    button {
-      background: #0284c7;
-      color: white;
-      border: none;
-      padding: 10px 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
+
+    .raw-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid #262626;
+      background: #0d0d0d;
+      gap: 12px;
     }
-    button:hover { background: #0369a1; }
-    ul { color: #cbd5e1; line-height: 1.7; padding-left: 20px; }
-    a { color: #38bdf8; cursor: pointer; }
-    pre {
-      display: none;
-      background: #090d16;
-      border: 1px solid #475569;
-      border-radius: 8px;
-      padding: 14px;
-      font-family: Consolas, monospace;
+
+    .raw-title {
+      font-family: Consolas, Monaco, monospace;
       font-size: 13px;
-      color: #f8fafc;
-      overflow-x: auto;
-      max-height: 420px;
+      color: #ffffff;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .raw-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .raw-code {
+      flex: 1;
+      margin: 0;
+      padding: 18px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #f5f5f5;
+      background: #080808;
+      overflow: auto;
       white-space: pre;
-      margin-top: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+    }
+
+    h3 {
+      margin-top: 24px;
+      margin-bottom: 10px;
+      font-size: 16px;
+      color: #ffffff;
+    }
+
+    p {
+      color: #d4d4d4;
+      line-height: 1.6;
+      margin-top: 10px;
+    }
+
+    .cmd-card {
+      background: #080808;
+      border: 1px solid #262626;
+      border-radius: 14px;
+      padding: 18px 20px 22px;
+      margin: 20px 0;
+    }
+
+    .cmd-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .cmd-lang {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .cmd-lang svg {
+      width: 16px;
+      height: 16px;
+      color: #a3a3a3;
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: #e5e5e5;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .icon-btn:hover {
+      background: #171717;
+      border-color: #2e2e2e;
+      color: #ffffff;
+    }
+
+    .icon-btn.copied {
+      background: #ffffff;
+      color: #050505;
+      border-color: #ffffff;
+    }
+
+    .icon-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .cmd-body {
+      font-family: Consolas, Monaco, monospace;
+      font-size: 14px;
+      color: #ffffff;
+      overflow-x: auto;
+      white-space: nowrap;
+      line-height: 1.5;
+    }
+
+    ul {
+      color: #d4d4d4;
+      line-height: 1.75;
+      padding-left: 20px;
+      margin: 8px 0 18px;
+    }
+
+    code {
+      background: #171717;
+      color: #ffffff;
+      border: 1px solid #262626;
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-size: 0.92em;
+    }
+
+    .panel-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .panel-label {
+      color: #d4d4d4;
+      font-size: 14px;
+      margin: 0;
+    }
+
+    .panel-toggle-btn {
+      background: #141414;
+      color: #ffffff;
+      border: 1px solid #2e2e2e;
+      border-radius: 9px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .panel-toggle-btn:hover {
+      background: #ffffff;
+      color: #050505;
+      border-color: #ffffff;
+    }
+
+    .panel-toggle-btn svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 900px) {
+      .split-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .info-pane {
+        align-items: flex-start;
+        padding: 24px 16px;
+      }
+
+      .raw-pane {
+        position: static;
+        height: 55vh;
+        border-left: none;
+        border-top: 1px solid #262626;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Jupyter Notebook Auto-Setup Script</h1>
-    <p>PowerShell orqali Python, PATH, Jupyter Notebook hamda kerakli kutubxonalarni avtomatik sozlash skripti.</p>
+  <div id="layout" class="split-layout">
+    <main class="info-pane">
+      <div class="card">
+        <h1>Jupyter Notebook Auto-Setup Script</h1>
+        <p>PowerShell orqali Python, PATH, Jupyter Notebook hamda kerakli kutubxonalarni avtomatik sozlash skripti.</p>
 
-    <div class="cmd-box" id="psCmd">irm "https://jupyter.mr1xyyy.uz/setup-jupyter.ps1" | iex</div>
-    <button id="copyBtn" onclick="copyCmd()">Buyruqni nusxalash</button>
+        <div class="cmd-card">
+          <div class="cmd-header">
+            <div class="cmd-lang">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="8 7 3 12 8 17"></polyline>
+                <polyline points="16 7 21 12 16 17"></polyline>
+                <line x1="14" y1="5" x2="10" y2="19"></line>
+              </svg>
+              <span>PowerShell</span>
+            </div>
+            <button id="copyBtn" class="icon-btn" type="button" onclick="copyCmd()" title="Nusxalash" aria-label="Buyruqni nusxalash">
+              <svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <svg id="checkIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </button>
+          </div>
+          <div class="cmd-body" id="psCmd">irm "https://jupyter.mr1xyyy.uz/setup-jupyter.ps1" | iex</div>
+        </div>
 
-    <h3>Skript nima qiladi?</h3>
-    <ul>
-      <li>Python versiyasini tekshiradi va kerak bo'lsa o'rnatadi</li>
-      <li><code>PATH</code> muhit o'zgaruvchisini tekshirib tuzatadi</li>
-      <li><code>notebook</code>, <code>numpy</code>, <code>pandas</code>, <code>matplotlib</code>, <code>scikit-learn</code> va <code>seaborn</code> ni o'rnatadi</li>
-      <li>Ishlamasa zaxira sifatida <code>venv</code> yaratib, <code>activate</code> buyrug'ini nusxalaydi</li>
-      <li><code>Downloads</code> papkasiga o'tib, Jupyter Notebook'ni ishga tushiradi</li>
-    </ul>
+        <h3>Skript nima qiladi?</h3>
+        <ul>
+          <li>Python versiyasini tekshiradi va kerak bo'lsa o'rnatadi</li>
+          <li><code>PATH</code> muhit o'zgaruvchisini tekshirib tuzatadi</li>
+          <li><code>notebook</code>, <code>numpy</code>, <code>pandas</code>, <code>matplotlib</code>, <code>scikit-learn</code> va <code>seaborn</code> ni o'rnatadi</li>
+          <li>Ishlamasa zaxira sifatida <code>venv</code> yaratib, <code>activate</code> buyrug'ini nusxalaydi</li>
+          <li><code>Downloads</code> papkasiga o'tib, Jupyter Notebook'ni ishga tushiradi</li>
+        </ul>
 
-    <p>
-      Raw skript matni:
-      <a href="#raw-viewer" onclick="showRawScript(event)">setup-jupyter.ps1 (sahifada ko'rish)</a>
-    </p>
+        <div class="panel-footer">
+          <p class="panel-label">Raw skript kodi:</p>
+          <button id="panelToggleBtn" class="panel-toggle-btn" type="button" onclick="toggleRawPanel()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+              <line x1="15" y1="4" x2="15" y2="20"></line>
+            </svg>
+            <span id="panelToggleText">O'ng panelni yopish</span>
+          </button>
+        </div>
+      </div>
+    </main>
 
-    <pre id="raw-viewer"></pre>
+    <aside class="raw-pane" aria-label="Raw skript kodi">
+      <div class="raw-topbar">
+        <span class="raw-title">setup-jupyter.ps1</span>
+        <div class="raw-actions">
+          <button id="copyRawBtn" class="icon-btn" type="button" onclick="copyRaw()" title="Kodni nusxalash" aria-label="Kodni nusxalash">
+            <svg id="copyRawIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <svg id="checkRawIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </button>
+          <button class="icon-btn" type="button" onclick="toggleRawPanel(false)" title="Panelni yopish" aria-label="Panelni yopish">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <pre id="rawViewer" class="raw-code">Yuklanmoqda...</pre>
+    </aside>
   </div>
 
   <script>
-    function copyCmd() {
-      const text = document.getElementById("psCmd").innerText;
-      navigator.clipboard.writeText(text);
-      const btn = document.getElementById("copyBtn");
-      btn.innerText = "Nusxalandi!";
-      setTimeout(() => {
-        btn.innerText = "Buyruqni nusxalash";
-      }, 2000);
+    const FALLBACK_SCRIPT = `$ErrorActionPreference = "Stop"
+
+function Refresh-And-Repair-Path {
+    param([string]$PythonExePath)
+
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+    $dirsToEnsure = @()
+    if ($PythonExePath -and (Test-Path $PythonExePath)) {
+        $pyDir = Split-Path -Parent $PythonExePath
+        $scriptsDir = Join-Path $pyDir "Scripts"
+        $dirsToEnsure += $pyDir
+        if (Test-Path $scriptsDir) {
+            $dirsToEnsure += $scriptsDir
+        }
     }
 
-    async function showRawScript(e) {
-      e.preventDefault();
-      const viewer = document.getElementById("raw-viewer");
-      if (viewer.style.display === "block") {
-        viewer.style.display = "none";
-        return;
-      }
+    $currentUserParts = @()
+    if ($userPath) {
+        $currentUserParts = $userPath.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries)
+    }
 
-      viewer.style.display = "block";
-      viewer.textContent = "Yuklanmoqda...";
+    $changedUserPath = $false
+    foreach ($dir in $dirsToEnsure) {
+        $existsInUser = $currentUserParts | Where-Object { $_.TrimEnd('\\') -ieq $dir.TrimEnd('\\') }
+        if (-not $existsInUser) {
+            $currentUserParts += $dir
+            $changedUserPath = $true
+            Write-Host "PATH (User) ga qo'shildi: $dir" -ForegroundColor Green
+        }
+    }
+
+    if ($changedUserPath) {
+        $newUserPath = ($currentUserParts -join ";")
+        [System.Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
+        $userPath = $newUserPath
+    }
+
+    $combinedParts = @()
+    foreach ($entry in ($machinePath + ";" + $userPath).Split(';', [System.StringSplitOptions]::RemoveEmptyEntries)) {
+        if (-not ($combinedParts | Where-Object { $_ -ieq $entry.TrimEnd('\\') })) {
+            $combinedParts += $entry
+        }
+    }
+    $env:Path = ($combinedParts -join ";")
+}
+
+function Find-Real-Python {
+    $candidates = @()
+
+    $pyCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pyCmd -and $pyCmd.Source -and ($pyCmd.Source -notlike "*\\Microsoft\\WindowsApps\\*")) {
+        $candidates += $pyCmd.Source
+    }
+
+    $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyLauncher) {
+        try {
+            $resolvedFromPy = & py -3 -c "import sys; print(sys.executable)" 2>$null
+            if ($resolvedFromPy -and (Test-Path $resolvedFromPy.Trim())) {
+                $candidates += $resolvedFromPy.Trim()
+            }
+        } catch {}
+    }
+
+    $commonRoots = @(
+        (Join-Path $env:LocalAppData "Programs\\Python"),
+        "C:\\Python315", "C:\\Python314", "C:\\Python313", "C:\\Python312", "C:\\Program Files\\Python313", "C:\\Program Files\\Python312"
+    )
+    foreach ($root in $commonRoots) {
+        if (Test-Path $root) {
+            $found = Get-ChildItem -Path $root -Filter "python.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) {
+                $candidates += $found.FullName
+            }
+        }
+    }
+
+    foreach ($cand in $candidates) {
+        if ($cand -and (Test-Path $cand) -and ($cand -notlike "*\\Microsoft\\WindowsApps\\*")) {
+            return $cand
+        }
+    }
+    return $null
+}
+
+Write-Host "=== 1. Python versiyasi va PATH tekshirilmoqda ===" -ForegroundColor Cyan
+
+$pythonExe = Find-Real-Python
+
+if (-not $pythonExe) {
+    Write-Host "Haqiqiy Python topilmadi. winget orqali o'rnatishga urinilmoqda..." -ForegroundColor Yellow
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install -e --id Python.Python.3.13 --scope user --accept-package-agreements --accept-source-agreements
+        $pythonExe = Find-Real-Python
+    }
+}
+
+if (-not $pythonExe) {
+    Write-Host "XATO: Python topilmadi. python.org dan 'Add Python to PATH' belgilab o'rnating." -ForegroundColor Red
+    exit 1
+}
+
+Refresh-And-Repair-Path -PythonExePath $pythonExe
+
+$pyDir = Split-Path -Parent $pythonExe
+$scriptsDir = Join-Path $pyDir "Scripts"
+$allPathEntries = $env:Path.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object { $_.TrimEnd('\\').ToLower() }
+
+$hasPyDir = $allPathEntries -contains $pyDir.TrimEnd('\\').ToLower()
+$hasScriptsDir = (-not (Test-Path $scriptsDir)) -or ($allPathEntries -contains $scriptsDir.TrimEnd('\\').ToLower())
+
+Write-Host "Python yo'li : $pythonExe" -ForegroundColor Green
+Write-Host "Python versiya: $(& $pythonExe --version)" -ForegroundColor Green
+Write-Host "PATH tekshiruvi: Python papkasi=$hasPyDir | Scripts papkasi=$hasScriptsDir" -ForegroundColor Green
+
+$packages = @("numpy", "pandas", "matplotlib", "scikit-learn", "seaborn")
+
+Write-Host "=== 2. Asosiy muhitda Jupyter tekshirilmoqda ===" -ForegroundColor Cyan
+$globalJupyterOk = $false
+try {
+    & $pythonExe -m pip install --upgrade pip | Out-Null
+    & $pythonExe -m pip install notebook @packages
+    & $pythonExe -m jupyter --version | Out-Null
+
+    $jupyterCmd = Get-Command jupyter -ErrorAction SilentlyContinue
+    if ($jupyterCmd) {
+        & jupyter --version | Out-Null
+        $globalJupyterOk = $true
+        Write-Host "Asosiy muhitda ham, buyruq satrida ham Jupyter tayyor!" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "Asosiy muhitda Jupyter ishga tushmadi. Venv muqobil yo'liga o'tilmoqda..." -ForegroundColor Yellow
+}
+
+$activePython = $pythonExe
+$venvDir = Join-Path $HOME ".jupyter-venv"
+$venvPython = Join-Path $venvDir "Scripts\\python.exe"
+$activateCmd = Join-Path $venvDir "Scripts\\activate"
+
+if (-not $globalJupyterOk) {
+    Write-Host "=== 3. Muqobil usul: venv yaratilmoqda ($venvDir) ===" -ForegroundColor Cyan
+    if (-not (Test-Path $venvPython)) {
+        & $pythonExe -m venv $venvDir
+    }
+
+    & $venvPython -m pip install --upgrade pip
+    & $venvPython -m pip install notebook @packages
+    & $venvPython -m jupyter --version
+
+    $activePython = $venvPython
+
+    try {
+        Set-Clipboard -Value $activateCmd
+        Write-Host ""
+        Write-Host "Venv faollashtirish buyrug'i clipboard'ga nusxalandi:" -ForegroundColor Yellow
+        Write-Host $activateCmd -ForegroundColor White -BackgroundColor DarkBlue
+        Write-Host ""
+    } catch {
+        Write-Host "Venv faollashtirish buyrug'i: $activateCmd" -ForegroundColor Yellow
+    }
+}
+
+Write-Host "=== 4. Downloads papkasiga o'tilmoqda ===" -ForegroundColor Cyan
+$downloadsPath = Join-Path $HOME "Downloads"
+if (Test-Path $downloadsPath) {
+    Set-Location $downloadsPath
+    Write-Host "Joriy papka: $downloadsPath" -ForegroundColor Green
+} else {
+    Write-Host "Downloads topilmadi, joriy papka: $(Get-Location)" -ForegroundColor Yellow
+}
+
+Write-Host "=== 5. Jupyter Notebook ishga tushmoqda ===" -ForegroundColor Cyan
+if ($globalJupyterOk) {
+    jupyter notebook
+} else {
+    & $activePython -m jupyter notebook
+}`;
+
+    let copyCmdTimer = null;
+    let copyRawTimer = null;
+    let rawLoaded = false;
+
+    function syncToggleButton(isOpen) {
+      const label = document.getElementById("panelToggleText");
+      if (label) {
+        label.textContent = isOpen ? "O'ng panelni yopish" : "setup-jupyter.ps1 ni ochish";
+      }
+    }
+
+    function flashCheck(btnId, copyIconId, checkIconId, timerRefName) {
+      const btn = document.getElementById(btnId);
+      const copyIcon = document.getElementById(copyIconId);
+      const checkIcon = document.getElementById(checkIconId);
+
+      btn.classList.add("copied");
+      copyIcon.style.display = "none";
+      checkIcon.style.display = "block";
+
+      if (timerRefName === "cmd") {
+        clearTimeout(copyCmdTimer);
+        copyCmdTimer = setTimeout(() => {
+          btn.classList.remove("copied");
+          checkIcon.style.display = "none";
+          copyIcon.style.display = "block";
+        }, 1800);
+      } else {
+        clearTimeout(copyRawTimer);
+        copyRawTimer = setTimeout(() => {
+          btn.classList.remove("copied");
+          checkIcon.style.display = "none";
+          copyIcon.style.display = "block";
+        }, 1800);
+      }
+    }
+
+    function copyCmd() {
+      const text = document.getElementById("psCmd").textContent;
+      navigator.clipboard.writeText(text);
+      flashCheck("copyBtn", "copyIcon", "checkIcon", "cmd");
+    }
+
+    function copyRaw() {
+      const text = document.getElementById("rawViewer").textContent;
+      navigator.clipboard.writeText(text);
+      flashCheck("copyRawBtn", "copyRawIcon", "checkRawIcon", "raw");
+    }
+
+    async function loadRawScript(force = false) {
+      if (rawLoaded && !force) return;
+      const viewer = document.getElementById("rawViewer");
 
       try {
-        const res = await fetch("/setup-jupyter.ps1", { cache: "no-store" });
+        const res = await fetch("./setup-jupyter.ps1", { cache: "no-store" });
         if (!res.ok) throw new Error("HTTP " + res.status);
-        viewer.textContent = await res.text();
-      } catch (err) {
-        viewer.textContent = "Yuklab bo'lmadi: " + err.message;
+        const content = await res.text();
+        if (content.trim().startsWith("<!DOCTYPE") || content.trim().startsWith("<html")) {
+          throw new Error("HTML returned");
+        }
+        viewer.textContent = content;
+        rawLoaded = true;
+      } catch {
+        viewer.textContent = FALLBACK_SCRIPT;
+        rawLoaded = true;
       }
     }
+
+    function toggleRawPanel(openState) {
+      const layout = document.getElementById("layout");
+      const shouldOpen = typeof openState === "boolean"
+        ? openState
+        : layout.classList.contains("raw-closed");
+
+      layout.classList.toggle("raw-closed", !shouldOpen);
+      syncToggleButton(shouldOpen);
+      if (shouldOpen) {
+        loadRawScript();
+      }
+    }
+
+    loadRawScript();
   </script>
 </body>
 </html>
