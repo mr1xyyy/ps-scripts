@@ -46,7 +46,21 @@
     }
     button:hover { background: #0369a1; }
     ul { color: #cbd5e1; line-height: 1.7; padding-left: 20px; }
-    a { color: #38bdf8; }
+    a { color: #38bdf8; cursor: pointer; }
+    pre {
+      display: none;
+      background: #090d16;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: Consolas, monospace;
+      font-size: 13px;
+      color: #f8fafc;
+      overflow-x: auto;
+      max-height: 420px;
+      white-space: pre;
+      margin-top: 14px;
+    }
   </style>
 </head>
 <body>
@@ -55,7 +69,7 @@
     <p>PowerShell orqali Python, PATH, Jupyter Notebook hamda kerakli kutubxonalarni avtomatik sozlash skripti.</p>
 
     <div class="cmd-box" id="psCmd">irm "https://jupyter.mr1xyyy.uz/setup-jupyter.ps1" | iex</div>
-    <button onclick="copyCmd()">Buyruqni nusxalash</button>
+    <button id="copyBtn" onclick="copyCmd()">Buyruqni nusxalash</button>
 
     <h3>Skript nima qiladi?</h3>
     <ul>
@@ -66,13 +80,43 @@
       <li><code>Downloads</code> papkasiga o'tib, Jupyter Notebook'ni ishga tushiradi</li>
     </ul>
 
-    <p>Raw skript fayli: <a href="/setup-jupyter.ps1">setup-jupyter.ps1</a></p>
+    <p>
+      Raw skript matni:
+      <a href="#raw-viewer" onclick="showRawScript(event)">setup-jupyter.ps1 (sahifada ko'rish)</a>
+    </p>
+
+    <pre id="raw-viewer"></pre>
   </div>
 
   <script>
     function copyCmd() {
       const text = document.getElementById("psCmd").innerText;
       navigator.clipboard.writeText(text);
+      const btn = document.getElementById("copyBtn");
+      btn.innerText = "Nusxalandi!";
+      setTimeout(() => {
+        btn.innerText = "Buyruqni nusxalash";
+      }, 2000);
+    }
+
+    async function showRawScript(e) {
+      e.preventDefault();
+      const viewer = document.getElementById("raw-viewer");
+      if (viewer.style.display === "block") {
+        viewer.style.display = "none";
+        return;
+      }
+
+      viewer.style.display = "block";
+      viewer.textContent = "Yuklanmoqda...";
+
+      try {
+        const res = await fetch("/setup-jupyter.ps1", { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        viewer.textContent = await res.text();
+      } catch (err) {
+        viewer.textContent = "Yuklab bo'lmadi: " + err.message;
+      }
     }
   </script>
 </body>
