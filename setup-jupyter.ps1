@@ -90,7 +90,7 @@ Write-Host "=== 1. Python versiyasi va PATH tekshirilmoqda ===" -ForegroundColor
 $pythonExe = Find-Real-Python
 
 if (-not $pythonExe) {
-    Write-Host "Haqiqiy Python topilmadi. winget orqali o'rnatilmoqda..." -ForegroundColor Yellow
+    Write-Host "Haqiqiy Python topilmadi. winget orqali o'rnatishga urinilmoqda..." -ForegroundColor Yellow
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         winget install -e --id Python.Python.3.13 --scope user --accept-package-agreements --accept-source-agreements
         $pythonExe = Find-Real-Python
@@ -124,7 +124,6 @@ try {
     & $pythonExe -m pip install notebook @packages
     & $pythonExe -m jupyter --version | Out-Null
 
-    # Buyruq satrida ham jupyter notebook ishlayotganini tekshirish
     $jupyterCmd = Get-Command jupyter -ErrorAction SilentlyContinue
     if ($jupyterCmd) {
         & jupyter --version | Out-Null
@@ -138,6 +137,7 @@ try {
 $activePython = $pythonExe
 $venvDir = Join-Path $HOME ".jupyter-venv"
 $venvPython = Join-Path $venvDir "Scripts\python.exe"
+$activateCmd = Join-Path $venvDir "Scripts\activate"
 
 if (-not $globalJupyterOk) {
     Write-Host "=== 3. Muqobil usul: venv yaratilmoqda ($venvDir) ===" -ForegroundColor Cyan
@@ -150,7 +150,16 @@ if (-not $globalJupyterOk) {
     & $venvPython -m jupyter --version
 
     $activePython = $venvPython
-    Write-Host "venv muhiti tayyorlandi. Keyinchalik ishlatish uchun: $venvDir\Scripts\Activate.ps1" -ForegroundColor Green
+
+    try {
+        Set-Clipboard -Value $activateCmd
+        Write-Host ""
+        Write-Host "Venv faollashtirish buyrug'i clipboard'ga nusxalandi:" -ForegroundColor Yellow
+        Write-Host $activateCmd -ForegroundColor White -BackgroundColor DarkBlue
+        Write-Host ""
+    } catch {
+        Write-Host "Venv faollashtirish buyrug'i: $activateCmd" -ForegroundColor Yellow
+    }
 }
 
 Write-Host "=== 4. Downloads papkasiga o'tilmoqda ===" -ForegroundColor Cyan
