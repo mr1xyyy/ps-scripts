@@ -11,9 +11,7 @@ function Refresh-And-Repair-Path {
         $pyDir = Split-Path -Parent $PythonExePath
         $scriptsDir = Join-Path $pyDir "Scripts"
         $dirsToEnsure += $pyDir
-        if (Test-Path $scriptsDir) {
-            $dirsToEnsure += $scriptsDir
-        }
+        $dirsToEnsure += $scriptsDir
     }
 
     $currentUserParts = @()
@@ -38,7 +36,7 @@ function Refresh-And-Repair-Path {
     }
 
     $combinedParts = @()
-    foreach ($entry in ($machinePath + ";" + $userPath).Split(';', [System.StringSplitOptions]::RemoveEmptyEntries)) {
+    foreach ($entry in (($machinePath + ";" + $userPath).Split(';', [System.StringSplitOptions]::RemoveEmptyEntries))) {
         if (-not ($combinedParts | Where-Object { $_ -ieq $entry.TrimEnd('\') })) {
             $combinedParts += $entry
         }
@@ -66,11 +64,15 @@ function Find-Real-Python {
 
     $commonRoots = @(
         (Join-Path $env:LocalAppData "Programs\Python"),
-        "C:\Python315", "C:\Python314", "C:\Python313", "C:\Python312", "C:\Program Files\Python313", "C:\Program Files\Python312"
+        (Join-Path $env:LocalAppData "Python"),
+        "C:\Python315", "C:\Python314", "C:\Python313", "C:\Python312",
+        "C:\Program Files\Python314", "C:\Program Files\Python313", "C:\Program Files\Python312"
     )
     foreach ($root in $commonRoots) {
         if (Test-Path $root) {
-            $found = Get-ChildItem -Path $root -Filter "python.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            $found = Get-ChildItem -Path $root -Filter "python.exe" -Recurse -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -notlike "*\.jupyter-venv\*" } |
+                Select-Object -First 1
             if ($found) {
                 $candidates += $found.FullName
             }
@@ -109,7 +111,7 @@ $scriptsDir = Join-Path $pyDir "Scripts"
 $allPathEntries = $env:Path.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object { $_.TrimEnd('\').ToLower() }
 
 $hasPyDir = $allPathEntries -contains $pyDir.TrimEnd('\').ToLower()
-$hasScriptsDir = (-not (Test-Path $scriptsDir)) -or ($allPathEntries -contains $scriptsDir.TrimEnd('\').ToLower())
+$hasScriptsDir = $allPathEntries -contains $scriptsDir.TrimEnd('\').ToLower()
 
 Write-Host "Python yo'li : $pythonExe" -ForegroundColor Green
 Write-Host "Python versiya: $(& $pythonExe --version)" -ForegroundColor Green
@@ -120,15 +122,23 @@ $packages = @("numpy", "pandas", "matplotlib", "scikit-learn", "seaborn")
 Write-Host "=== 2. Asosiy muhitda Jupyter tekshirilmoqda ===" -ForegroundColor Cyan
 $globalJupyterOk = $false
 try {
-    & $pythonExe -m pip install --upgrade pip | Out-Null
-    & $pythonExe -m pip install notebook @packages
-    & $pythonExe -m jupyter --version | Out-Null
+    & $pythonExe -m pip install --upgrade pip --no-warn-script-location | Out-Null
+    & $pythonExe -m pip install notebook @packages --no-warn-script-location
+    Refresh-And-Repair-Path -PythonExePath $pythonExe
 
-    $jupyterCmd = Get-Command jupyter -ErrorAction SilentlyContinue
-    if ($jupyterCmd) {
-        & jupyter --version | Out-Null
+    & $pythonExe -m jupyter --version | Out-Null
+    $jupyterExe = Join-Path $scriptsDir "jupyter.exe"
+    if (Test-Path $jupyterExe) {
+        & $jupyterExe --version | Out-Null
         $globalJupyterOk = $true
-        Write-Host "Asosiy muhitda ham, buyruq satrida ham Jupyter tayyor!" -ForegroundColor Green
+        Write-Host "Asosiy muhitda Jupyter tayyor ($jupyterExe)!" -ForegroundColor Green
+    } else {
+        $jupyterCmd = Get-Command jupyter -ErrorAction SilentlyContinue
+        if ($jupyterCmd) {
+            & $jupyterCmd.Source --version | Out-Null
+            $globalJupyterOk = $true
+            Write-Host "Asosiy muhitda Jupyter tayyor ($($jupyterCmd.Source))!" -ForegroundColor Green
+        }
     }
 } catch {
     Write-Host "Asosiy muhitda Jupyter ishga tushmadi. Venv muqobil yo'liga o'tilmoqda..." -ForegroundColor Yellow
@@ -145,8 +155,8 @@ if (-not $globalJupyterOk) {
         & $pythonExe -m venv $venvDir
     }
 
-    & $venvPython -m pip install --upgrade pip
-    & $venvPython -m pip install notebook @packages
+    & $venvPython -m pip install --upgrade pip --no-warn-script-location
+    & $venvPython -m pip install notebook @packages --no-warn-script-location
     & $venvPython -m jupyter --version
 
     $activePython = $venvPython
@@ -173,7 +183,7 @@ if (Test-Path $downloadsPath) {
 
 Write-Host "=== 5. Jupyter Notebook ishga tushmoqda ===" -ForegroundColor Cyan
 if ($globalJupyterOk) {
-    jupyter notebook
+    & $pythonExe -m jupyter notebook
 } else {
     & $activePython -m jupyter notebook
 }
