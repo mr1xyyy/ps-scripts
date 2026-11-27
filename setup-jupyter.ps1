@@ -105,7 +105,6 @@ function Remove-Corrupted-Files-If-Any {
         }
     }
 
-    # Buzilgan .pyc fayllarni tekshirish va o'chirish
     foreach ($root in $checkRoots) {
         $pycFiles = Get-ChildItem -Path $root -Filter "*.pyc" -Recurse -ErrorAction SilentlyContinue
         foreach ($pyc in $pycFiles) {
@@ -121,7 +120,6 @@ function Remove-Corrupted-Files-If-Any {
             }
         }
 
-        # Null baytli (.py) fayllarni tekshirish va o'chirish
         $pyFiles = Get-ChildItem -Path $root -Filter "*.py" -Recurse -ErrorAction SilentlyContinue
         foreach ($pyFile in $pyFiles) {
             try {
@@ -137,10 +135,15 @@ function Remove-Corrupted-Files-If-Any {
         }
     }
 
-    # Asosiy modullarni import qilib ko'rish; xato chiqsa global site-packages dagi buzilgan paketlarni tozalash
     if ($PythonExePath -and (Test-Path $PythonExePath)) {
+        $prevErrAction = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
         $testOutput = & $PythonExePath -B -c "import pip, tornado, zmq, jupyter_client, nbconvert" 2>&1
-        if ($LASTEXITCODE -ne 0 -or ($testOutput -match "null bytes|bad marshal data|EOFError|UnicodeDecodeError")) {
+        $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $prevErrAction
+
+        $outText = ($testOutput | Out-String)
+        if ($exitCode -ne 0 -or ($outText -match "null bytes|bad marshal data|EOFError|UnicodeDecodeError|Traceback|SyntaxError|ValueError")) {
             $corruptedFound = $true
             $pyRoot = Split-Path -Parent $PythonExePath
             $sitePkgs = Join-Path $pyRoot "Lib\site-packages"
@@ -148,7 +151,8 @@ function Remove-Corrupted-Files-If-Any {
                 "pip", "pip-*", "tornado", "tornado-*", "zmq", "pyzmq*",
                 "jupyter_client", "jupyter_client-*", "nbconvert", "nbconvert-*",
                 "ipykernel", "ipykernel-*", "jupyter_core", "jupyter_core-*",
-                "jupyter_server", "jupyter_server-*", "notebook", "notebook-*"
+                "jupyter_server", "jupyter_server-*", "notebook", "notebook-*",
+                "jupyterlab", "jupyterlab-*", "jupyterlab_server", "jupyterlab_server-*"
             )
             foreach ($pattern in $suspects) {
                 Get-ChildItem -Path $sitePkgs -Filter $pattern -ErrorAction SilentlyContinue |
@@ -223,7 +227,11 @@ if (Test-Path $pyvenvCfg) {
 }
 
 Write-Host "=== 4. Kutubxonalar va Jupyter o'rnatilmoqda ===" -ForegroundColor Cyan
+$prevErr = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & $venvPython -B -m ensurepip --upgrade 2>$null
+$ErrorActionPreference = $prevErr
+
 & $venvPython -B -m pip install --no-cache-dir --disable-pip-version-check --upgrade pip --no-warn-script-location
 & $venvPython -B -m pip install --no-cache-dir --disable-pip-version-check notebook ipykernel @packages --no-warn-script-location
 & $venvPython -B -m ipykernel install --user --name "jupyter-venv" --display-name "Python (jupyter-venv)" | Out-Null
