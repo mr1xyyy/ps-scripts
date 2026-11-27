@@ -48,7 +48,7 @@ function Find-Real-Python {
     $candidates = @()
 
     $pyCmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($pyCmd -and $pyCmd.Source -and ($pyCmd.Source -notlike "*\Microsoft\WindowsApps\*")) {
+    if ($pyCmd -and $pyCmd.Source -and ($pyCmd.Source -notlike "*\Microsoft\WindowsApps\*") -and ($pyCmd.Source -notlike "*\.jupyter-venv\*")) {
         $candidates += $pyCmd.Source
     }
 
@@ -80,7 +80,7 @@ function Find-Real-Python {
     }
 
     foreach ($cand in $candidates) {
-        if ($cand -and (Test-Path $cand) -and ($cand -notlike "*\Microsoft\WindowsApps\*")) {
+        if ($cand -and (Test-Path $cand) -and ($cand -notlike "*\Microsoft\WindowsApps\*") -and ($cand -notlike "*\.jupyter-venv\*")) {
             return $cand
         }
     }
@@ -118,58 +118,27 @@ Write-Host "Python versiya: $(& $pythonExe --version)" -ForegroundColor Green
 Write-Host "PATH tekshiruvi: Python papkasi=$hasPyDir | Scripts papkasi=$hasScriptsDir" -ForegroundColor Green
 
 $packages = @("numpy", "pandas", "matplotlib", "scikit-learn", "seaborn")
-
-Write-Host "=== 2. Asosiy muhitda Jupyter tekshirilmoqda ===" -ForegroundColor Cyan
-$globalJupyterOk = $false
-try {
-    & $pythonExe -m pip install --upgrade pip --no-warn-script-location | Out-Null
-    & $pythonExe -m pip install notebook @packages --no-warn-script-location
-    Refresh-And-Repair-Path -PythonExePath $pythonExe
-
-    & $pythonExe -m jupyter --version | Out-Null
-    $jupyterExe = Join-Path $scriptsDir "jupyter.exe"
-    if (Test-Path $jupyterExe) {
-        & $jupyterExe --version | Out-Null
-        $globalJupyterOk = $true
-        Write-Host "Asosiy muhitda Jupyter tayyor ($jupyterExe)!" -ForegroundColor Green
-    } else {
-        $jupyterCmd = Get-Command jupyter -ErrorAction SilentlyContinue
-        if ($jupyterCmd) {
-            & $jupyterCmd.Source --version | Out-Null
-            $globalJupyterOk = $true
-            Write-Host "Asosiy muhitda Jupyter tayyor ($($jupyterCmd.Source))!" -ForegroundColor Green
-        }
-    }
-} catch {
-    Write-Host "Asosiy muhitda Jupyter ishga tushmadi. Venv muqobil yo'liga o'tilmoqda..." -ForegroundColor Yellow
-}
-
-$activePython = $pythonExe
 $venvDir = Join-Path $HOME ".jupyter-venv"
 $venvPython = Join-Path $venvDir "Scripts\python.exe"
 $activateCmd = Join-Path $venvDir "Scripts\activate"
 
-if (-not $globalJupyterOk) {
-    Write-Host "=== 3. Muqobil usul: venv yaratilmoqda ($venvDir) ===" -ForegroundColor Cyan
-    if (-not (Test-Path $venvPython)) {
-        & $pythonExe -m venv $venvDir
-    }
+Write-Host "=== 2. Toza venv tayyorlanmoqda ($venvDir) ===" -ForegroundColor Cyan
+if (-not (Test-Path $venvPython)) {
+    & $pythonExe -m venv $venvDir
+}
 
-    & $venvPython -m pip install --upgrade pip --no-warn-script-location
-    & $venvPython -m pip install notebook @packages --no-warn-script-location
-    & $venvPython -m jupyter --version
+Write-Host "=== 3. Kutubxonalar va Jupyter o'rnatilmoqda ===" -ForegroundColor Cyan
+& $venvPython -B -m pip install --no-cache-dir --disable-pip-version-check --upgrade pip --no-warn-script-location
+& $venvPython -B -m pip install --no-cache-dir --disable-pip-version-check notebook @packages --no-warn-script-location
 
-    $activePython = $venvPython
-
-    try {
-        Set-Clipboard -Value $activateCmd
-        Write-Host ""
-        Write-Host "Venv faollashtirish buyrug'i clipboard'ga nusxalandi:" -ForegroundColor Yellow
-        Write-Host $activateCmd -ForegroundColor White -BackgroundColor DarkBlue
-        Write-Host ""
-    } catch {
-        Write-Host "Venv faollashtirish buyrug'i: $activateCmd" -ForegroundColor Yellow
-    }
+try {
+    Set-Clipboard -Value $activateCmd
+    Write-Host ""
+    Write-Host "Venv faollashtirish buyrug'i clipboard'ga nusxalandi:" -ForegroundColor Yellow
+    Write-Host $activateCmd -ForegroundColor White -BackgroundColor DarkBlue
+    Write-Host ""
+} catch {
+    Write-Host "Venv faollashtirish buyrug'i: $activateCmd" -ForegroundColor Yellow
 }
 
 Write-Host "=== 4. Downloads papkasiga o'tilmoqda ===" -ForegroundColor Cyan
@@ -182,8 +151,4 @@ if (Test-Path $downloadsPath) {
 }
 
 Write-Host "=== 5. Jupyter Notebook ishga tushmoqda ===" -ForegroundColor Cyan
-if ($globalJupyterOk) {
-    & $pythonExe -m jupyter notebook
-} else {
-    & $activePython -m jupyter notebook
-}
+& $venvPython -B -m jupyter notebook
