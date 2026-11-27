@@ -105,17 +105,44 @@ function Find-Real-Python {
     return $null
 }
 
-function Test-Direct-Jupyter-Ready {
-    param([string]$PythonExePath)
+function Ensure-Direct-Packages-And-Test {
+    param(
+        [string]$PythonExePath,
+        [string[]]$Packages
+    )
 
     $prevErr = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    $out = & $PythonExePath -B -c "import jupyter_core, jupyter_server, notebook, ipykernel, zmq, tornado, nbconvert; print('JUPYTER_DIRECT_OK')" 2>&1
-    $code = $LASTEXITCODE
+
+    # 1. Global pip va asosiy modullarni tekshirish
+    $checkBase = & $PythonExePath -B -c "import pip; print('PIP_OK')" 2>&1
+    $baseCode = $LASTEXITCODE
+    $baseText = ($checkBase | Out-String)
+
+    if ($baseCode -ne 0 -or ($baseText -notmatch "PIP_OK") -or ($baseText -match "null bytes|bad marshal data|EOFError|UnicodeDecodeError|SyntaxError|ValueError|Traceback")) {
+        $ErrorActionPreference = $prevErr
+        return $false
+    }
+
+    # 2. Yetishmayotgan kutubxonalarni global Python ga o'rnatish
+    $allToInstall = @("notebook", "ipykernel") + $Packages
+    Write-UiStatus -Tag "PIP" -Message "Oddiy muhit uchun kutubxonalar tekshirilmoqda/yuklanmoqda: $($allToInstall -join ', ')" -Color Gray
+    $pipOut = & $PythonExePath -B -m pip install --no-cache-dir --disable-pip-version-check @allToInstall --no-warn-script-location 2>&1
+    $pipCode = $LASTEXITCODE
+    $pipText = ($pipOut | Out-String)
+
+    if ($pipCode -ne 0 -or ($pipText -match "null bytes|bad marshal data|EOFError|UnicodeDecodeError|SyntaxError|ValueError|Traceback")) {
+        $ErrorActionPreference = $prevErr
+        return $false
+    }
+
+    # 3. Hammasi to'g'ri import bo'lishini tasdiqlash
+    $verifyOut = & $PythonExePath -B -c "import jupyter_core, jupyter_server, notebook, ipykernel, zmq, tornado, nbconvert, numpy, pandas, matplotlib, sklearn, seaborn; print('JUPYTER_DIRECT_OK')" 2>&1
+    $verifyCode = $LASTEXITCODE
     $ErrorActionPreference = $prevErr
 
-    $text = ($out | Out-String)
-    if ($code -eq 0 -and ($text -match "JUPYTER_DIRECT_OK") -and ($text -notmatch "null bytes|bad marshal data|EOFError|UnicodeDecodeError|SyntaxError|ValueError|Traceback")) {
+    $verifyText = ($verifyOut | Out-String)
+    if ($verifyCode -eq 0 -and ($verifyText -match "JUPYTER_DIRECT_OK") -and ($verifyText -notmatch "null bytes|bad marshal data|EOFError|UnicodeDecodeError|SyntaxError|ValueError|Traceback")) {
         return $true
     }
     return $false
@@ -177,10 +204,10 @@ function Remove-Corrupted-Files-If-Any {
     }
 
     if ($PythonExePath -and (Test-Path $PythonExePath)) {
-        Write-UiStatus -Tag "CHECK" -Message "Asosiy modullar (pip, tornado, zmq, jupyter_client, nbconvert, notebook) tekshirilmoqda..." -Color Gray
+        Write-UiStatus -Tag "CHECK" -Message "Asosiy modullar (pip, tornado, zmq, jupyter_client, nbconvert, notebook, numpy, pandas) tekshirilmoqda..." -Color Gray
         $prevErrAction = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-        $testOutput = & $PythonExePath -B -c "import pip, tornado, zmq, jupyter_client, nbconvert, notebook" 2>&1
+        $testOutput = & $PythonExePath -B -c "import pip, tornado, zmq, jupyter_client, nbconvert, notebook, numpy, pandas" 2>&1
         $exitCode = $LASTEXITCODE
         $ErrorActionPreference = $prevErrAction
 
@@ -195,7 +222,9 @@ function Remove-Corrupted-Files-If-Any {
                 "jupyter_client", "jupyter_client-*", "nbconvert", "nbconvert-*",
                 "ipykernel", "ipykernel-*", "jupyter_core", "jupyter_core-*",
                 "jupyter_server", "jupyter_server-*", "notebook", "notebook-*",
-                "jupyterlab", "jupyterlab-*", "jupyterlab_server", "jupyterlab_server-*"
+                "jupyterlab", "jupyterlab-*", "jupyterlab_server", "jupyterlab_server-*",
+                "traitlets", "traitlets-*", "numpy", "numpy-*", "pandas", "pandas-*",
+                "matplotlib", "matplotlib-*", "sklearn", "scikit_learn-*", "seaborn", "seaborn-*"
             )
             foreach ($pattern in $suspects) {
                 $matched = Get-ChildItem -Path $sitePkgs -Filter $pattern -ErrorAction SilentlyContinue
@@ -253,10 +282,10 @@ $venvPython = Join-Path $venvDir "Scripts\python.exe"
 $pipCacheDir = Join-Path $env:LocalAppData "pip\Cache"
 $downloadsPath = Join-Path $HOME "Downloads"
 
-# 1-navbat: Oddiy (global) Jupyter orqali kirishga urinish
-Write-UiHeader -StepText "=== 1B. Oddiy Jupyter Notebook tekshirilmoqda ==="
-if (Test-Direct-Jupyter-Ready -PythonExePath $pythonExe) {
-    Write-UiStatus -Tag "OK" -Message "Oddiy Jupyter tayyor! To'g'ridan-to'g'ri oddiy Jupyter orqali ochilmoqda..." -Color Green
+# 1-navbat: Oddiy muhitga kutubxonalarni o'rnatib, oddiy Jupyter orqali ochish
+Write-UiHeader -StepText "=== 1B. Kutubxonalar yuklanmoqda va oddiy Jupyter tekshirilmoqda ==="
+if (Ensure-Direct-Packages-And-Test -PythonExePath $pythonExe -Packages $packages) {
+    Write-UiStatus -Tag "OK" -Message "Barcha kutubxonalar yuklandi! Oddiy Jupyter orqali ochilmoqda..." -Color Green
     if (Test-Path $downloadsPath) {
         Set-Location $downloadsPath
         Write-UiStatus -Tag "DIR" -Message "Joriy papka: $downloadsPath" -Color Green
@@ -264,7 +293,7 @@ if (Test-Direct-Jupyter-Ready -PythonExePath $pythonExe) {
     & $pythonExe -B -m jupyter notebook
     exit 0
 } else {
-    Write-UiStatus -Tag "INFO" -Message "Oddiy Jupyter ishlamadi yoki fayllari buzilgan. Tozalash va venv muqobiliga o'tilmoqda..." -Color Yellow
+    Write-UiStatus -Tag "INFO" -Message "Oddiy muhitda o'rnatish yoki ishga tushirishda muammo chiqdi. Tozalash va venv muqobiliga o'tilmoqda..." -Color Yellow
 }
 
 # 2-bosqich: Buzilgan fayllarni tekshirish va o'chirish
