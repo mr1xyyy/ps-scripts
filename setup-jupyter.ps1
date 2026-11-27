@@ -1,6 +1,23 @@
 $ErrorActionPreference = "Stop"
 $env:PYTHONDONTWRITEBYTECODE = "1"
 
+function Write-UiHeader {
+    param([string]$StepText)
+    Write-Host ""
+    Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
+    Write-Host $StepText -ForegroundColor Cyan
+    Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
+}
+
+function Write-UiStatus {
+    param(
+        [string]$Tag,
+        [string]$Message,
+        [ConsoleColor]$Color = [ConsoleColor]::Gray
+    )
+    Write-Host ("  [{0}] {1}" -f $Tag, $Message) -ForegroundColor $Color
+}
+
 function Refresh-And-Repair-Path {
     param([string]$PythonExePath)
 
@@ -26,7 +43,7 @@ function Refresh-And-Repair-Path {
         if (-not $existsInUser) {
             $currentUserParts += $dir
             $changedUserPath = $true
-            Write-Host "PATH (User) ga qo'shildi: $dir" -ForegroundColor Green
+            Write-UiStatus -Tag "PATH" -Message "User PATH ga qo'shildi: $dir" -Color Green
         }
     }
 
@@ -88,6 +105,22 @@ function Find-Real-Python {
     return $null
 }
 
+function Test-Direct-Jupyter-Ready {
+    param([string]$PythonExePath)
+
+    $prevErr = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $out = & $PythonExePath -B -c "import jupyter_core, jupyter_server, notebook, ipykernel, zmq, tornado, nbconvert; print('JUPYTER_DIRECT_OK')" 2>&1
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = $prevErr
+
+    $text = ($out | Out-String)
+    if ($code -eq 0 -and ($text -match "JUPYTER_DIRECT_OK") -and ($text -notmatch "null bytes|bad marshal data|EOFError|UnicodeDecodeError|SyntaxError|ValueError|Traceback")) {
+        return $true
+    }
+    return $false
+}
+
 function Remove-Corrupted-Files-If-Any {
     param([string]$PythonExePath, [string]$VenvPath)
 
@@ -95,40 +128,48 @@ function Remove-Corrupted-Files-If-Any {
     $checkRoots = @()
 
     if ($VenvPath -and (Test-Path $VenvPath)) {
+        Write-UiStatus -Tag "SCAN" -Message "Venv papkasi tekshirilmoqda: $VenvPath" -Color Gray
         $checkRoots += $VenvPath
     }
     if ($PythonExePath -and (Test-Path $PythonExePath)) {
         $pyRoot = Split-Path -Parent $PythonExePath
         $sitePkgs = Join-Path $pyRoot "Lib\site-packages"
         if (Test-Path $sitePkgs) {
+            Write-UiStatus -Tag "SCAN" -Message "Global site-packages tekshirilmoqda: $sitePkgs" -Color Gray
             $checkRoots += $sitePkgs
         }
     }
 
     foreach ($root in $checkRoots) {
+        Write-UiStatus -Tag "PYC" -Message "Buzilgan .pyc fayllar qidirilmoqda -> $root" -Color Gray
         $pycFiles = Get-ChildItem -Path $root -Filter "*.pyc" -Recurse -ErrorAction SilentlyContinue
         foreach ($pyc in $pycFiles) {
             try {
                 $bytes = [System.IO.File]::ReadAllBytes($pyc.FullName)
                 if ($bytes.Length -lt 16) {
+                    Write-UiStatus -Tag "DEL" -Message "Qisqa/buzilgan .pyc o'chirildi: $($pyc.FullName)" -Color Yellow
                     Remove-Item -Path $pyc.FullName -Force -ErrorAction SilentlyContinue
                     $corruptedFound = $true
                 }
             } catch {
+                Write-UiStatus -Tag "DEL" -Message "O'qib bo'lmagan .pyc o'chirildi: $($pyc.FullName)" -Color Yellow
                 Remove-Item -Path $pyc.FullName -Force -ErrorAction SilentlyContinue
                 $corruptedFound = $true
             }
         }
 
+        Write-UiStatus -Tag "PY" -Message "Null baytli (.py) fayllar qidirilmoqda -> $root" -Color Gray
         $pyFiles = Get-ChildItem -Path $root -Filter "*.py" -Recurse -ErrorAction SilentlyContinue
         foreach ($pyFile in $pyFiles) {
             try {
                 $bytes = [System.IO.File]::ReadAllBytes($pyFile.FullName)
                 if ($bytes -contains 0) {
+                    Write-UiStatus -Tag "DEL" -Message "Null baytli .py fayl o'chirildi: $($pyFile.FullName)" -Color Yellow
                     Remove-Item -Path $pyFile.FullName -Force -ErrorAction SilentlyContinue
                     $corruptedFound = $true
                 }
             } catch {
+                Write-UiStatus -Tag "DEL" -Message "Buzilgan .py fayl o'chirildi: $($pyFile.FullName)" -Color Yellow
                 Remove-Item -Path $pyFile.FullName -Force -ErrorAction SilentlyContinue
                 $corruptedFound = $true
             }
@@ -136,14 +177,16 @@ function Remove-Corrupted-Files-If-Any {
     }
 
     if ($PythonExePath -and (Test-Path $PythonExePath)) {
+        Write-UiStatus -Tag "CHECK" -Message "Asosiy modullar (pip, tornado, zmq, jupyter_client, nbconvert, notebook) tekshirilmoqda..." -Color Gray
         $prevErrAction = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-        $testOutput = & $PythonExePath -B -c "import pip, tornado, zmq, jupyter_client, nbconvert" 2>&1
+        $testOutput = & $PythonExePath -B -c "import pip, tornado, zmq, jupyter_client, nbconvert, notebook" 2>&1
         $exitCode = $LASTEXITCODE
         $ErrorActionPreference = $prevErrAction
 
         $outText = ($testOutput | Out-String)
         if ($exitCode -ne 0 -or ($outText -match "null bytes|bad marshal data|EOFError|UnicodeDecodeError|Traceback|SyntaxError|ValueError")) {
+            Write-UiStatus -Tag "WARN" -Message "Modul importida xato aniqlandi. Buzilgan paket papkalari tozalanmoqda..." -Color Yellow
             $corruptedFound = $true
             $pyRoot = Split-Path -Parent $PythonExePath
             $sitePkgs = Join-Path $pyRoot "Lib\site-packages"
@@ -155,21 +198,31 @@ function Remove-Corrupted-Files-If-Any {
                 "jupyterlab", "jupyterlab-*", "jupyterlab_server", "jupyterlab_server-*"
             )
             foreach ($pattern in $suspects) {
-                Get-ChildItem -Path $sitePkgs -Filter $pattern -ErrorAction SilentlyContinue |
-                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                $matched = Get-ChildItem -Path $sitePkgs -Filter $pattern -ErrorAction SilentlyContinue
+                foreach ($item in $matched) {
+                    Write-UiStatus -Tag "DEL" -Message "Buzilgan paket o'chirildi: $($item.FullName)" -Color Yellow
+                    Remove-Item -Recurse -Force $item.FullName -ErrorAction SilentlyContinue
+                }
             }
+        } else {
+            Write-UiStatus -Tag "OK" -Message "Global modullarda buzilish topilmadi." -Color Green
         }
     }
 
     return $corruptedFound
 }
 
-Write-Host "=== 1. Python versiyasi va PATH tekshirilmoqda ===" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Magenta
+Write-Host "           JUPYTER NOTEBOOK O'RNATISH VA ISHGA TUSHIRISH     " -ForegroundColor Magenta
+Write-Host "============================================================" -ForegroundColor Magenta
+
+Write-UiHeader -StepText "=== 1. Python versiyasi va PATH tekshirilmoqda ==="
 
 $pythonExe = Find-Real-Python
 
 if (-not $pythonExe) {
-    Write-Host "Haqiqiy Python topilmadi. winget orqali o'rnatishga urinilmoqda..." -ForegroundColor Yellow
+    Write-UiStatus -Tag "INFO" -Message "Haqiqiy Python topilmadi. winget orqali o'rnatishga urinilmoqda..." -Color Yellow
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         winget install -e --id Python.Python.3.13 --scope user --accept-package-agreements --accept-source-agreements
         $pythonExe = Find-Real-Python
@@ -177,7 +230,7 @@ if (-not $pythonExe) {
 }
 
 if (-not $pythonExe) {
-    Write-Host "XATO: Python topilmadi. python.org dan 'Add Python to PATH' belgilab o'rnating." -ForegroundColor Red
+    Write-UiStatus -Tag "ERR" -Message "Python topilmadi. python.org dan 'Add Python to PATH' belgilab o'rnating." -Color Red
     exit 1
 }
 
@@ -190,29 +243,50 @@ $allPathEntries = $env:Path.Split(';', [System.StringSplitOptions]::RemoveEmptyE
 $hasPyDir = $allPathEntries -contains $pyDir.TrimEnd('\').ToLower()
 $hasScriptsDir = $allPathEntries -contains $scriptsDir.TrimEnd('\').ToLower()
 
-Write-Host "Python yo'li : $pythonExe" -ForegroundColor Green
-Write-Host "Python versiya: $(& $pythonExe -B --version)" -ForegroundColor Green
-Write-Host "PATH tekshiruvi: Python papkasi=$hasPyDir | Scripts papkasi=$hasScriptsDir" -ForegroundColor Green
+Write-UiStatus -Tag "PY" -Message "Python yo'li : $pythonExe" -Color Green
+Write-UiStatus -Tag "VER" -Message "Python versiya: $(& $pythonExe -B --version)" -Color Green
+Write-UiStatus -Tag "PATH" -Message "Python papkasi=$hasPyDir | Scripts papkasi=$hasScriptsDir" -Color Green
 
 $packages = @("numpy", "pandas", "matplotlib", "scikit-learn", "seaborn")
 $venvDir = Join-Path $HOME ".jupyter-venv"
 $venvPython = Join-Path $venvDir "Scripts\python.exe"
 $pipCacheDir = Join-Path $env:LocalAppData "pip\Cache"
+$downloadsPath = Join-Path $HOME "Downloads"
 
-Write-Host "=== 2. Buzilgan fayllar tekshirilmoqda va tozalanmoqda ===" -ForegroundColor Cyan
+# 1-navbat: Oddiy (global) Jupyter orqali kirishga urinish
+Write-UiHeader -StepText "=== 1B. Oddiy Jupyter Notebook tekshirilmoqda ==="
+if (Test-Direct-Jupyter-Ready -PythonExePath $pythonExe) {
+    Write-UiStatus -Tag "OK" -Message "Oddiy Jupyter tayyor! To'g'ridan-to'g'ri oddiy Jupyter orqali ochilmoqda..." -Color Green
+    if (Test-Path $downloadsPath) {
+        Set-Location $downloadsPath
+        Write-UiStatus -Tag "DIR" -Message "Joriy papka: $downloadsPath" -Color Green
+    }
+    & $pythonExe -B -m jupyter notebook
+    exit 0
+} else {
+    Write-UiStatus -Tag "INFO" -Message "Oddiy Jupyter ishlamadi yoki fayllari buzilgan. Tozalash va venv muqobiliga o'tilmoqda..." -Color Yellow
+}
+
+# 2-bosqich: Buzilgan fayllarni tekshirish va o'chirish
+Write-UiHeader -StepText "=== 2. Buzilgan fayllar tekshirilmoqda va tozalanmoqda ==="
 $hadCorruption = Remove-Corrupted-Files-If-Any -PythonExePath $pythonExe -VenvPath $venvDir
 if ($hadCorruption) {
     Write-Host "Buzilgan fayllar aniqlandi va o'chirildi." -ForegroundColor Yellow
+} else {
+    Write-UiStatus -Tag "INFO" -Message "Alohida buzilgan fayl topilmadi, eski venv va pip keshi tozalanmoqda..." -Color Gray
 }
 
 if (Test-Path $venvDir) {
+    Write-UiStatus -Tag "CLEAN" -Message "Eski venv o'chirilmoqda: $venvDir" -Color Gray
     Remove-Item -Recurse -Force $venvDir -ErrorAction SilentlyContinue
 }
 if (Test-Path $pipCacheDir) {
+    Write-UiStatus -Tag "CLEAN" -Message "Pip keshi o'chirilmoqda: $pipCacheDir" -Color Gray
     Remove-Item -Recurse -Force $pipCacheDir -ErrorAction SilentlyContinue
 }
 
-Write-Host "=== 3. Izolyatsiya qilingan venv yaratilmoqda ($venvDir) ===" -ForegroundColor Cyan
+Write-UiHeader -StepText "=== 3. Izolyatsiya qilingan venv yaratilmoqda ($venvDir) ==="
+Write-UiStatus -Tag "VENV" -Message "Virtual muhit yaratilmoqda..." -Color Gray
 & $pythonExe -B -m venv --clear $venvDir
 
 $pyvenvCfg = Join-Path $venvDir "pyvenv.cfg"
@@ -224,9 +298,10 @@ if (Test-Path $pyvenvCfg) {
         $cfgContent = $cfgContent.TrimEnd() + "`r`ninclude-system-site-packages = false`r`n"
     }
     Set-Content -Path $pyvenvCfg -Value $cfgContent -NoNewline
+    Write-UiStatus -Tag "CFG" -Message "include-system-site-packages = false o'rnatildi." -Color Green
 }
 
-Write-Host "=== 4. Kutubxonalar va Jupyter o'rnatilmoqda ===" -ForegroundColor Cyan
+Write-UiHeader -StepText "=== 4. Kutubxonalar va Jupyter venv ichiga o'rnatilmoqda ==="
 $prevErr = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 & $venvPython -B -m ensurepip --upgrade 2>$null
@@ -235,26 +310,26 @@ $ErrorActionPreference = $prevErr
 & $venvPython -B -m pip install --no-cache-dir --disable-pip-version-check --upgrade pip --no-warn-script-location
 & $venvPython -B -m pip install --no-cache-dir --disable-pip-version-check notebook ipykernel @packages --no-warn-script-location
 & $venvPython -B -m ipykernel install --user --name "jupyter-venv" --display-name "Python (jupyter-venv)" | Out-Null
+Write-UiStatus -Tag "OK" -Message "Venv kutubxonalari va kernel tayyor." -Color Green
 
 $runCmd = "& `"$venvPython`" -B -m jupyter notebook"
 try {
     Set-Clipboard -Value $runCmd
     Write-Host ""
-    Write-Host "Jupyter ishga tushirish buyrug'i clipboard'ga nusxalandi:" -ForegroundColor Yellow
-    Write-Host $runCmd -ForegroundColor White -BackgroundColor DarkBlue
+    Write-UiStatus -Tag "CLIP" -Message "Jupyter ishga tushirish buyrug'i clipboard'ga nusxalandi:" -Color Yellow
+    Write-Host "    $runCmd" -ForegroundColor White -BackgroundColor DarkBlue
     Write-Host ""
 } catch {
-    Write-Host "Jupyter ishga tushirish buyrug'i: $runCmd" -ForegroundColor Yellow
+    Write-UiStatus -Tag "CMD" -Message "Jupyter ishga tushirish buyrug'i: $runCmd" -Color Yellow
 }
 
-Write-Host "=== 5. Downloads papkasiga o'tilmoqda ===" -ForegroundColor Cyan
-$downloadsPath = Join-Path $HOME "Downloads"
+Write-UiHeader -StepText "=== 5. Downloads papkasiga o'tilmoqda ==="
 if (Test-Path $downloadsPath) {
     Set-Location $downloadsPath
-    Write-Host "Joriy papka: $downloadsPath" -ForegroundColor Green
+    Write-UiStatus -Tag "DIR" -Message "Joriy papka: $downloadsPath" -Color Green
 } else {
-    Write-Host "Downloads topilmadi, joriy papka: $(Get-Location)" -ForegroundColor Yellow
+    Write-UiStatus -Tag "WARN" -Message "Downloads topilmadi, joriy papka: $(Get-Location)" -Color Yellow
 }
 
-Write-Host "=== 6. Jupyter Notebook ishga tushmoqda ===" -ForegroundColor Cyan
+Write-UiHeader -StepText "=== 6. Jupyter Notebook (venv) ishga tushmoqda ==="
 & $venvPython -B -m jupyter notebook
